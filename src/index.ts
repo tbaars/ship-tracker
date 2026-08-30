@@ -1,64 +1,219 @@
 import { DurableObject } from "cloudflare:workers";
 
-/**
- * Welcome to Cloudflare Workers! This is your first Durable Objects application.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your Durable Object in action
- * - Run `npm run deploy` to publish your application
- *
- * Bind resources to your worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/durable-objects
- */
+const ROTTERDAM_MMSI = "245464000";
 
-/** A Durable Object's behavior is defined in an exported Javascript class */
-export class MyDurableObject extends DurableObject<Env> {
-	/**
-	 * The constructor is invoked once upon creation of the Durable Object, i.e. the first call to
-	 * 	`DurableObjectStub::get` for a given identifier (no-op constructors can be omitted)
-	 *
-	 * @param ctx - The interface for interacting with Durable Object state
-	 * @param env - The interface to reference bindings declared in wrangler.jsonc
-	 */
-	constructor(ctx: DurableObjectState, env: Env) {
-		super(ctx, env);
-	}
+export class MyDurableObject extends DurableObject {
+  private socket: WebSocket | null = null;
 
-	/**
-	 * The Durable Object exposes an RPC method sayHello which will be invoked when a Durable
-	 *  Object instance receives a request from a Worker via the same method invocation on the stub
-	 *
-	 * @param name - The name provided to a Durable Object instance from a Worker
-	 * @returns The greeting to be sent back to the Worker
-	 */
-	async sayHello(name: string): Promise<string> {
-		return `Hello, ${name}!`;
-	}
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+
+    // Create our little database the first time the tracker runs.
+    this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS positions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        lat REAL NOT NULL,
+        lon REAL NOT NULL,
+        sog REAL,
+        cog REAL
+      )
+    `);
+  }
+
+  async start(): Promise<string> {
+    // Don't create a second connection if we're already connected.
+    if (
+      this.socket &&
+      (this.socket.readyState === WebSocket.OPEN ||
+        this.socket.readyState === WebSocket.CONNECTING)
+    ) {
+      return "already connected";
+    }
+
+    console.log("Connecting to AISStream...");
+
+    const socket = new WebSocket(
+      "wss://stream.aisstream.io/v0/stream"
+    );
+
+socket.binaryType = "arraybuffer";
+
+    this.socket = socket;
+
+    socket.addEventListener("open", () => {
+      console.log("Connected to AISStream");
+
+console.log("Sending AISStream subscription");
+
+      socket.send(
+        JSON.stringify({
+          APIKey: this.env.AISSTREAM_API_KEY,
+
+          BoundingBoxes: [
+            [
+              [-90, -180],
+              [90, 180]
+            ]
+          ],
+
+          FiltersShipMMSI: [ROTTERDAM_MMSI],
+          FilterMessageTypes: ["PositionReport"]
+        })
+      );
+    });
+
+    socket.addEventListener("message", async (event) => {
+      try {
+        let text: string;
+
+if (typeof event.data === "string") {
+  text = event.data;
+} else if (event.data instanceof ArrayBuffer) {
+  text = new TextDecoder().decode(event.data);
+} else if (event.data instanceof Blob) {
+  text = await event.data.text();
+} else {
+  console.log("Unknown AIS message type");
+  return;
+}
+
+const message = JSON.parse(text);
+
+console.log("AIS message type:", message.MessageType);
+
+        if (message.MessageType !== "PositionReport") {
+          return;
+        }
+
+        const lat = message.MetaData?.Latitude;
+        const lon = message.MetaData?.Longitude;
+
+        if (typeof lat !== "number" || typeof lon !== "number") {
+          return;
+        }
+
+        const report = message.Message?.PositionReport ?? {};
+
+        const latest = [
+          ...this.ctx.storage.sql.exec<{ timestamp: string }>(`
+            SELECT timestamp
+            FROM positions
+            ORDER BY id DESC
+            LIMIT 1
+          `)
+        ][0];
+
+        const now = new Date();
+
+        // Keep roughly one location every 30 minutes.
+        if (latest) {
+          const lastTime = new Date(latest.timestamp);
+
+          const minutesSince =
+            (now.getTime() - lastTime.getTime()) / 1000 / 60;
+
+          if (minutesSince < 30) {
+            return;
+          }
+        }
+
+        this.ctx.storage.sql.exec(
+          `
+          INSERT INTO positions
+            (timestamp, lat, lon, sog, cog)
+          VALUES (?, ?, ?, ?, ?)
+          `,
+          now.toISOString(),
+          lat,
+          lon,
+          report.Sog ?? null,
+          report.Cog ?? null
+        );
+
+        console.log(
+          `Saved Rotterdam position: ${lat}, ${lon}`
+        );
+      } catch (error) {
+        console.error("AIS message error:", error);
+      }
+    });
+
+   socket.addEventListener("close", (event) => {
+  console.log(
+    "AISStream disconnected",
+    "code:", event.code,
+    "reason:", event.reason,
+    "clean:", event.wasClean
+  );
+
+  this.socket = null;
+
+  this.ctx.storage.setAlarm(Date.now() + 60_000);
+});
+
+    socket.addEventListener("error", (error) => {
+      console.error("AISStream WebSocket error:", error);
+    });
+
+    return "connecting";
+  }
+
+  async alarm() {
+    await this.start();
+  }
+
+  async getPositions() {
+    return [
+      ...this.ctx.storage.sql.exec(`
+        SELECT timestamp, lat, lon, sog, cog
+        FROM positions
+        ORDER BY id ASC
+      `)
+    ];
+  }
 }
 
 export default {
-	/**
-	 * This is the standard fetch handler for a Cloudflare Worker
-	 *
-	 * @param request - The request submitted to the Worker from the client
-	 * @param env - The interface to reference bindings declared in wrangler.jsonc
-	 * @param ctx - The execution context of the Worker
-	 * @returns The response to be sent back to the client
-	 */
-	async fetch(request, env, ctx): Promise<Response> {
-		// Create a stub to open a communication channel with the Durable Object
-		// instance named "foo".
-		//
-		// Requests from all Workers to the Durable Object instance named "foo"
-		// will go to a single remote Durable Object instance.
-		const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
 
-		// Call the `sayHello()` RPC method on the stub to invoke the method on
-		// the remote Durable Object instance.
-		const greeting = await stub.sayHello("world");
+    const id =
+      env.MY_DURABLE_OBJECT.idFromName("rotterdam");
 
-		return new Response(greeting);
-	},
-} satisfies ExportedHandler<Env>;
+    const tracker =
+      env.MY_DURABLE_OBJECT.get(id);
+
+    if (url.pathname === "/start") {
+      const status = await tracker.start();
+
+      return Response.json(
+        { status },
+        {
+          headers: {
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
+    }
+
+    if (url.pathname === "/positions") {
+      const positions = await tracker.getPositions();
+
+      return Response.json(positions, {
+        headers: {
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
+
+    return new Response(
+`🚢 Nana and Opa Tracker
+
+Rotterdam MMSI: ${ROTTERDAM_MMSI}
+
+/start       Start the AIS collector
+/positions   See the saved route`
+    );
+  }
+};
