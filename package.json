@@ -6,17 +6,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "collector": "node --env-file-if-exists=.env server.mjs",
     "collector:test": "AISSTREAM_DISABLED=true PORT=3100 DATA_FILE=/tmp/nana-opa-test-positions.json node server.mjs",
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "start": "node --env-file-if-exists=.env server.mjs",
-    "cf-typegen": "wrangler types"
-  },
-  "devDependencies": {
-    "@types/node": "^26.4.0",
-    "typescript": "^5.5.2",
-    "wrangler": "^4.127.1"
+    "start": "node --env-file-if-exists=.env server.mjs"
   },
   "dependencies": {
     "ws": "^8.21.3"
