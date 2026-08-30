@@ -22,26 +22,36 @@
         BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 10px 18px;
+    }
+
+    #identity {
+      min-width: 0;
+    }
+
     #title {
-      font-size: clamp(30px, 5vw, 46px);
-      font-weight: 600;
+      font-size: clamp(25px, 3.5vw, 34px);
+      font-weight: 500;
       letter-spacing: -0.035em;
-      text-align: center;
-      padding: 12px 10px 0;
+      line-height: 1.1;
     }
 
     #subtitle {
-      text-align: center;
-      font-size: 15px;
-      font-weight: 450;
+      font-size: 14px;
+      font-weight: 400;
       letter-spacing: 0.01em;
       color: #58738d;
-      margin: 2px 0 9px;
+      margin-top: 2px;
     }
 
     #controls {
+      flex: 0 0 auto;
       text-align: center;
-      margin-bottom: 8px;
     }
 
     #findButton {
@@ -58,9 +68,9 @@
     }
 
     #status {
-      text-align: center;
-      min-height: 24px;
-      margin: 0 10px 7px;
+      min-height: 18px;
+      margin-top: 3px;
+      font-size: 13px;
       color: #58738d;
     }
 
@@ -74,26 +84,35 @@
       font-size: 38px;
       line-height: 38px;
     }
+
+    @media (max-width: 600px) {
+      #header {
+        flex-direction: column;
+        gap: 8px;
+        padding: 9px 12px 8px;
+        text-align: center;
+      }
+
+      #title {
+        font-size: 27px;
+      }
+    }
   </style>
 </head>
 
 <body>
 
-  <div id="title">
-    🚢 Nana and Opa Tracker 🌊
-  </div>
+  <header id="header">
+    <div id="identity">
+      <div id="title">🚢 Nana and Opa Tracker 🌊</div>
+      <div id="subtitle">Holland America Rotterdam</div>
+    </div>
 
-  <div id="subtitle">
-    Holland America Rotterdam
-  </div>
-
-  <div id="controls">
-    <button id="findButton">Find Nana and Opa</button>
-  </div>
-
-  <div id="status">
-    Looking for Nana and Opa...
-  </div>
+    <div id="controls">
+      <button id="findButton">Find Nana and Opa</button>
+      <div id="status">Looking for Nana and Opa...</div>
+    </div>
+  </header>
 
   <div id="map"></div>
 
