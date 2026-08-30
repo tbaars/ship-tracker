@@ -1,8 +1,9 @@
-# Nana and Opa cruise collector
+# Nana and Opa Cruise Tracker
 
-This Node service listens for AIS position reports from **Rotterdam** (MMSI
-`245464000`), saves at most one point every 30 minutes using the ship's AIS
-timestamp, and makes the saved route available over HTTP.
+This repository contains the public ship-tracker map and the Node collector
+that listens for AIS position reports from **Rotterdam** (MMSI `245464000`).
+The collector saves at most one point every 30 minutes using the ship's AIS
+timestamp and makes the saved route available over HTTP.
 
 ## Run locally
 
