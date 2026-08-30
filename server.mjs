@@ -2,6 +2,7 @@ import http from "node:http";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import WebSocket from "ws";
+import timezoneLookup from "@photostructure/tz-lookup";
 
 const MMSI = "245464000";
 const SHIP_NAME = "ROTTERDAM";
@@ -35,7 +36,15 @@ function parseAisTimestamp(value) {
 async function loadPositions() {
   try {
     const saved = JSON.parse(await readFile(DATA_FILE, "utf8"));
-    positions = Array.isArray(saved) ? saved : [];
+    positions = Array.isArray(saved)
+      ? saved.map((position) => ({
+          ...position,
+          timezone: position.timezone || timezoneLookup(
+            Number(position.latitude),
+            Number(position.longitude)
+          )
+        }))
+      : [];
     console.log(`Loaded ${positions.length} saved position(s)`);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
@@ -74,7 +83,8 @@ async function savePosition(message) {
     timestamp: timestamp.toISOString(),
     speedKnots: Number.isFinite(Number(report.Sog)) ? Number(report.Sog) : null,
     course: Number.isFinite(Number(report.Cog)) ? Number(report.Cog) : null,
-    heading: Number.isFinite(Number(report.TrueHeading)) ? Number(report.TrueHeading) : null
+    heading: Number.isFinite(Number(report.TrueHeading)) ? Number(report.TrueHeading) : null,
+    timezone: timezoneLookup(latitude, longitude)
   };
 
   positions.push(position);

@@ -10,6 +10,7 @@
     "start": "node --env-file-if-exists=.env server.mjs"
   },
   "dependencies": {
+    "@photostructure/tz-lookup": "^11.6.1",
     "ws": "^8.21.3"
   }
 }

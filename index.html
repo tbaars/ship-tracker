@@ -49,6 +49,18 @@
       margin-top: 2px;
     }
 
+    #timeRow {
+      margin-top: 3px;
+      color: #365a77;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    #timeDivider {
+      margin: 0 7px;
+      color: #9ab0c1;
+    }
+
     #controls {
       flex: 0 0 auto;
       text-align: center;
@@ -106,6 +118,11 @@
     <div id="identity">
       <div id="title">🚢 Nana and Opa Tracker 🌊</div>
       <div id="subtitle">Holland America Rotterdam</div>
+      <div id="timeRow">
+        Our time: <span id="ourTime">--</span>
+        <span id="timeDivider">•</span>
+        Nana &amp; Opa: <span id="shipTime">--</span>
+      </div>
     </div>
 
     <div id="controls">
@@ -145,6 +162,9 @@
 
     const status = document.getElementById("status");
     const findButton = document.getElementById("findButton");
+    const ourTime = document.getElementById("ourTime");
+    const shipTime = document.getElementById("shipTime");
+    let shipTimezone = null;
     const positionsUrl =
       "https://ship-tracker-production-1ccf.up.railway.app/positions";
 
@@ -159,6 +179,22 @@
         hour: "numeric",
         minute: "2-digit"
       });
+    }
+
+    function formatClock(timeZone) {
+      return new Intl.DateTimeFormat([], {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone,
+        timeZoneName: "short"
+      }).format(new Date());
+    }
+
+    function updateClocks() {
+      ourTime.textContent = formatClock();
+      shipTime.textContent = shipTimezone
+        ? formatClock(shipTimezone)
+        : "Locating...";
     }
 
     async function loadPositions() {
@@ -185,6 +221,8 @@
         route.setLatLngs(points);
 
         latestPosition = positions[positions.length - 1];
+        shipTimezone = latestPosition.timezone || "UTC";
+        updateClocks();
 
         const lat = Number(latestPosition.latitude);
         const lon = Number(latestPosition.longitude);
@@ -240,6 +278,8 @@
     });
 
     loadPositions();
+    updateClocks();
+    setInterval(updateClocks, 30 * 1000);
     setInterval(loadPositions, 5 * 60 * 1000);
   </script>
 
