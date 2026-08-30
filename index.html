@@ -119,6 +119,8 @@
 
     const status = document.getElementById("status");
     const findButton = document.getElementById("findButton");
+    const positionsUrl =
+      "https://ship-tracker-production-1ccf.up.railway.app/positions";
 
     function formatTime(timestamp) {
       if (!timestamp) return "Unknown";
@@ -135,9 +137,7 @@
 
     async function loadPositions() {
       try {
-        const response = await fetch(
-          "positions.json?cache=" + Date.now()
-        );
+        const response = await fetch(positionsUrl);
 
         if (!response.ok) {
           throw new Error("Could not load position history.");
@@ -152,16 +152,16 @@
         }
 
         const points = positions.map(p => [
-          Number(p.lat),
-          Number(p.lon)
+          Number(p.latitude),
+          Number(p.longitude)
         ]);
 
         route.setLatLngs(points);
 
         latestPosition = positions[positions.length - 1];
 
-        const lat = Number(latestPosition.lat);
-        const lon = Number(latestPosition.lon);
+        const lat = Number(latestPosition.latitude);
+        const lon = Number(latestPosition.longitude);
 
         if (shipMarker) {
           shipMarker.setLatLng([lat, lon]);
@@ -202,8 +202,8 @@
 
       map.setView(
         [
-          Number(latestPosition.lat),
-          Number(latestPosition.lon)
+          Number(latestPosition.latitude),
+          Number(latestPosition.longitude)
         ],
         7
       );
@@ -214,6 +214,7 @@
     });
 
     loadPositions();
+    setInterval(loadPositions, 5 * 60 * 1000);
   </script>
 
 </body>
