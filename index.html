@@ -1,1 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <title>Nana and Opa Tracker</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      background: #111827;
+      color: white;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    #title {
+      font-size: clamp(38px, 7vw, 64px);
+      font-weight: 900;
+      text-align: center;
+      padding: 20px 10px 4px;
+    }
+
+    #subtitle {
+      text-align: center;
+      font-size: 18px;
+      color: #aab4c3;
+      margin-bottom: 16px;
+    }
+
+    #controls {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    #findButton {
+      font-size: 20px;
+      font-weight: 700;
+      padding: 14px 24px;
+      border: 0;
+      border-radius: 14px;
+      cursor: pointer;
+    }
+
+    #status {
+      text-align: center;
+      min-height: 24px;
+      margin: 0 10px 12px;
+      color: #aab4c3;
+    }
+
+    #map {
+      width: 100%;
+      height: 70vh;
+      min-height: 450px;
+    }
+
+    .ship-icon {
+      font-size: 38px;
+      line-height: 38px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="title">
+    🚢 Nana and Opa Tracker 🌊
+  </div>
+
+  <div id="subtitle">
+    Holland America Rotterdam
+  </div>
+
+  <div id="controls">
+    <button id="findButton">Find Nana and Opa</button>
+  </div>
+
+  <div id="status">
+    Looking for Nana and Opa...
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    const map = L.map("map").setView([30, -30], 3);
+
+    L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      {
+        attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+        subdomains: "abcd",
+        maxZoom: 19
+      }
+    ).addTo(map);
+
+    const shipIcon = L.divIcon({
+      html: "🚢",
+      className: "ship-icon",
+      iconSize: [40, 40],
+      iconAnchor: [20, 20]
+    });
+
+    let shipMarker = null;
+    let latestPosition = null;
+
+    const route = L.polyline([], {
+      color: "#38bdf8",
+      weight: 4,
+      opacity: 0.9
+    }).addTo(map);
+
+    const status = document.getElementById("status");
+    const findButton = document.getElementById("findButton");
+
+    function formatTime(timestamp) {
+      if (!timestamp) return "Unknown";
+
+      const date = new Date(timestamp);
+
+      return date.toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    async function loadPositions() {
+      try {
+        const response = await fetch(
+          "positions.json?cache=" + Date.now()
+        );
+
+        if (!response.ok) {
+          throw new Error("Could not load position history.");
+        }
+
+        const positions = await response.json();
+
+        if (!positions.length) {
+          status.textContent =
+            "No sightings yet — Nana and Opa haven't checked in!";
+          return;
+        }
+
+        const points = positions.map(p => [
+          Number(p.lat),
+          Number(p.lon)
+        ]);
+
+        route.setLatLngs(points);
+
+        latestPosition = positions[positions.length - 1];
+
+        const lat = Number(latestPosition.lat);
+        const lon = Number(latestPosition.lon);
+
+        if (shipMarker) {
+          shipMarker.setLatLng([lat, lon]);
+        } else {
+          shipMarker = L.marker(
+            [lat, lon],
+            { icon: shipIcon }
+          ).addTo(map);
+        }
+
+        shipMarker.bindPopup(
+          "<b>🚢 Nana and Opa</b><br>" +
+          "Last spotted: " +
+          formatTime(latestPosition.timestamp)
+        );
+
+        status.textContent =
+          "Last spotted: " +
+          formatTime(latestPosition.timestamp);
+
+        if (points.length > 1) {
+          map.fitBounds(route.getBounds(), {
+            padding: [40, 40]
+          });
+        } else {
+          map.setView([lat, lon], 7);
+        }
+
+      } catch (error) {
+        console.error(error);
+        status.textContent =
+          "Couldn't load Nana and Opa's location.";
+      }
+    }
+
+    findButton.addEventListener("click", () => {
+      if (!latestPosition) return;
+
+      map.setView(
+        [
+          Number(latestPosition.lat),
+          Number(latestPosition.lon)
+        ],
+        7
+      );
+
+      if (shipMarker) {
+        shipMarker.openPopup();
+      }
+    });
+
+    loadPositions();
+  </script>
+
+</body>
+</html>
